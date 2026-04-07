@@ -42,4 +42,5 @@ Read only the slices relevant to that shape before making changes.
 - Read `references/background-jobs.md` for BullMQ-style async processing and worker design.
 - Read `references/docker-deployment.md` for container build/runtime patterns.
 - Read `references/prisma-orm.md` for Prisma schema, client, and database-layer conventions.
+- Read `references/google-auth.md` for implementing Google Auth
 
