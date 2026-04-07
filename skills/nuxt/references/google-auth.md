@@ -126,9 +126,15 @@ Expose the environment variables to the server runtime:
 ```typescript
 export default defineNuxtConfig({
   runtimeConfig: {
+    // Server-only (never exposed to client)
     googleClientId: process.env.GOOGLE_CLIENT_ID,
     googleClientSecret: process.env.GOOGLE_CLIENT_SECRET,
     secretKey: process.env.SECRET_KEY,
+    // Nested under `public` → available on both server and client
+    public: {
+      apiBase: 'https://api.example.com'
+    }
+
   },
 });
 ```
