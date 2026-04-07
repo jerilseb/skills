@@ -44,3 +44,5 @@ Read only the slices relevant to that shape before making changes.
 - Read `references/prisma-orm.md` for Prisma schema, client, and database-layer conventions.
 - Read `references/google-auth.md` for implementing Google Auth
 
+## Important Note
+- During development, do not attempt to start the dev server for build the app. Ask the user to run the needed commands for starting server.
