@@ -11,7 +11,7 @@ For a full-stack Nuxt app, this structure scales well:
 - `worker/`: optional standalone process for queue-backed or long-running work
 - `lib/` or `modules/`: shared backend logic used by Nitro routes and workers
 - `shared/`: shared TypeScript types or validation schemas used on both client and server
-- `prisma/`: Prisma schema and migration artifacts
+- `server/database/`: Drizzle schema definitions and migration artifacts
 - `data/` or storage adapter modules: local file storage helpers, seeds, or runtime data directories
 
 Adapt the names to the project, but preserve the responsibility split.
@@ -25,7 +25,7 @@ Use these defaults:
 - Put startup-only server logic in a server plugin rather than inside arbitrary routes.
 - Put long-running or retryable work in `worker/` instead of inside request handlers.
 - Put reusable services in `lib/` so routes and workers can share them.
-- Put data-access code behind a small database layer instead of calling Prisma everywhere.
+- Put data-access code behind a small database layer instead of calling Drizzle directly in routes.
 
 ## Thin Route Pattern
 

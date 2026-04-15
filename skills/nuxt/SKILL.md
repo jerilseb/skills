@@ -1,11 +1,11 @@
 ---
 name: nuxt
-description: Guide for building and maintaining Nuxt applications with clear boundaries between app code, Nitro server routes, background jobs, Docker deployment, Prisma/PostgreSQL data access, and minimal PWA support. Use when Codex needs to scaffold, review, refactor, or extend a Nuxt project that includes server APIs, async processing, containerized deployment, Prisma ORM, or lightweight PWA functionality.
+description: Guide for building and maintaining Nuxt applications with clear boundaries between app code, Nitro server routes, background jobs, Docker deployment, and Drizzle ORM/PostgreSQL data access. Use when Codex needs to scaffold, review, refactor, or extend a Nuxt project that includes server APIs, async processing, containerized deployment, or Drizzle ORM.
 ---
 
 # Nuxt
 
-Use this skill for full-stack Nuxt projects, especially when the app includes Nitro APIs, a separate worker process, Dockerized deployment, or Prisma-backed persistence.
+Use this skill for full-stack Nuxt projects, especially when the app includes Nitro APIs, a separate worker process, Dockerized deployment, or Drizzle ORM-backed persistence.
 
 ## Classify The Project First
 
@@ -14,9 +14,8 @@ Decide which shape you are working in before editing:
 - Pure frontend Nuxt app
 - Full-stack Nuxt app with Nitro APIs
 - Nuxt app plus a separate background worker
-- Nuxt app plus Prisma and PostgreSQL
+- Nuxt app plus Drizzle ORM and PostgreSQL
 - Nuxt app prepared for containerized deployment
-- Nuxt app needing minimal PWA support
 
 Read only the slices relevant to that shape before making changes.
 
@@ -33,20 +32,17 @@ Read only the slices relevant to that shape before making changes.
 
 - Keep route handlers thin: validate input, authorize, call shared logic, return a response.
 - Keep job names, payload types, and queue creation centralized.
-- Keep Prisma access centralized behind a data-access layer when the app grows beyond a few queries.
+- Keep Drizzle access centralized behind a data-access layer when the app grows beyond a few queries.
 - Keep filesystem or object-storage path creation behind helper functions.
 - Keep shared frontend/backend types in one place when the frontend consumes server-owned shapes.
-- When asked for PWA support, implement only the minimal setup in this skill unless the user explicitly asks for more: manifest, icons, head metadata, and a minimal service worker registration without caching.
 
 ## Load The Matching Reference
 
 - Read `references/directory-structure.md` for file placement and architecture boundaries.
 - Read `references/background-jobs.md` for BullMQ-style async processing and worker design.
 - Read `references/docker-deployment.md` for container build/runtime patterns.
-- Read `references/prisma-orm.md` for Prisma schema, client, and database-layer conventions.
-- Read `references/google-auth.md` for implementing Sign-in with Google
-- Read `references/pwa.md` for minimal PWA support in Nuxt without adding full offline behavior
+- Read `references/drizzle-orm.md` for Drizzle schema, client, and database-layer conventions.
+- Read `references/google-auth.md` for implementing Google Auth
 
 ## Important Note
 - During development, do not attempt to start the dev server or build the app. Ask the user to run the needed commands for starting server.
-- If a user asks for PWA functionality, implement only the minimal setup from this skill by default. Do not add `vite-pwa`, `@vite-pwa/nuxt`, Workbox precaching, runtime caching, offline fallbacks, or other full-PWA features unless they explicitly request them.

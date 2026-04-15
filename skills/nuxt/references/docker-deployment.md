@@ -53,7 +53,7 @@ CMD ["node", ".output/server/index.mjs"]
 Adjust:
 
 - the base image version
-- any OS packages required by Prisma or native dependencies
+- any OS packages required by native dependencies (e.g., `better-sqlite3` needs build tools)
 - the exposed port
 - the startup command if the project uses pnpm, yarn, or a different worker entrypoint
 
@@ -166,7 +166,7 @@ Keep environment handling consistent across:
 
 - Nuxt runtime
 - worker runtime
-- Prisma CLI
+- Drizzle Kit CLI
 - Docker and Compose files
 
 Prefer one source of truth for parsing and validation in application code, then mirror only the required variables into deployment manifests.
@@ -175,8 +175,8 @@ Prefer one source of truth for parsing and validation in application code, then 
 
 Be deliberate here:
 
-- `prisma db push` is fast and acceptable for prototypes or early-stage internal apps.
-- Prisma migrations are usually safer for mature production systems.
+- `drizzle-kit push` is fast and acceptable for prototypes or early-stage internal apps.
+- Drizzle Kit migration files (`drizzle-kit generate` + `drizzle-kit migrate`) are safer for mature production systems.
 
 If both app and worker run schema synchronization on startup, ensure the approach is intentional and operationally safe.
 
