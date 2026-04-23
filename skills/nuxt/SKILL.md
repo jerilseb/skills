@@ -43,7 +43,8 @@ Read only the slices relevant to that shape before making changes.
 - Read `references/docker-deployment.md` for container build/runtime patterns.
 - Read `references/helm-deployment.md` for Kubernetes Helm chart patterns.
 - Read `references/drizzle-orm.md` for Drizzle schema, client, and database-layer conventions.
-- Read `references/google-auth.md` for implementing Google Auth
+- Read `references/google-auth.md` for implementing Google Auth.
+- Read `references/pwa.md` for making a Nuxt app installable as a PWA with a minimal service worker.
 
 ## Important Note
 - During development, do not attempt to start the dev server or build the app. Ask the user to run the needed commands for starting server.
