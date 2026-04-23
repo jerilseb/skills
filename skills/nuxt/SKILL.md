@@ -15,7 +15,7 @@ Decide which shape you are working in before editing:
 - Full-stack Nuxt app with Nitro APIs
 - Nuxt app plus a separate background worker
 - Nuxt app plus Drizzle ORM and PostgreSQL
-- Nuxt app prepared for containerized deployment
+- Nuxt app prepared for containerized deployment (Docker or Helm)
 
 Read only the slices relevant to that shape before making changes.
 
@@ -41,6 +41,7 @@ Read only the slices relevant to that shape before making changes.
 - Read `references/directory-structure.md` for file placement and architecture boundaries.
 - Read `references/background-jobs.md` for BullMQ-style async processing and worker design.
 - Read `references/docker-deployment.md` for container build/runtime patterns.
+- Read `references/helm-deployment.md` for Kubernetes Helm chart patterns.
 - Read `references/drizzle-orm.md` for Drizzle schema, client, and database-layer conventions.
 - Read `references/google-auth.md` for implementing Google Auth
 
