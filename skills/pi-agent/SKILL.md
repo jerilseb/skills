@@ -1,5 +1,5 @@
 ---
-name: pi-agent-framework
+name: pi-agent
 description: Reference manual for the Pi agent framework. Use when working with @earendil-works/pi-ai, @earendil-works/pi-agent-core, @earendil-works/pi-coding-agent, Pi agent tools, agent loops, sessions, compaction, extensions, or OAuth/model APIs.
 ---
 
