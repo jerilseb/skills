@@ -1,6 +1,9 @@
 # `@earendil-works/pi-coding-agent` SDK & Infrastructure
 
-The higher-level coding-agent infrastructure is exported from `@earendil-works/pi-coding-agent`, not from `@earendil-works/pi-agent-core` in `0.74.0`.
+The higher-level coding-agent infrastructure is exported from `@earendil-works/pi-coding-agent`, not from `@earendil-works/pi-agent-core` in `0.80.2`.
+
+> [!NOTE]
+> `@earendil-works/pi-coding-agent` is **not installed in this repo**, so (unlike the `pi-ai` / `pi-agent-core` references) the export/API specifics below were not re-verified against the package — they reflect the `0.74` surface with version pins bumped to the `0.80` line. The one cross-package fact that is verified: `pi-ai`'s root `getModel`/`getProviders` moved to a `Models` collection / the `providers/all` subpath in 0.80 (see `pi-ai.md`).
 
 Use this reference for sessions, built-in coding tools, compaction, resource loading, extensions, settings, prompt templates, and interactive/RPC/print mode integration.
 
@@ -17,7 +20,7 @@ Selected root exports:
 - Skills: `loadSkills`, `loadSkillsFromDir`, `formatSkillsForPrompt`
 - Extensions: `defineTool`, `createExtensionRuntime`, `discoverAndLoadExtensions`, `ExtensionRunner`, `wrapRegisteredTool(s)`
 
-There is no public `AgentHarness`, `NodeExecutionEnv`, `JsonlSessionRepo`, or `executeShellWithCapture` export in `0.74.0`.
+There is no public `AgentHarness`, `NodeExecutionEnv`, `JsonlSessionRepo`, or `executeShellWithCapture` export in `0.80.2`.
 
 ## Creating A Session
 
@@ -25,11 +28,11 @@ There is no public `AgentHarness`, `NodeExecutionEnv`, `JsonlSessionRepo`, or `e
 
 ```typescript
 import { createAgentSession } from '@earendil-works/pi-coding-agent';
-import { getModel } from '@earendil-works/pi-ai';
+import { getBuiltinModel } from '@earendil-works/pi-ai/providers/all';
 
 const { session, extensionsResult, modelFallbackMessage } = await createAgentSession({
   cwd: process.cwd(),
-  model: getModel('anthropic', 'claude-opus-4-5'),
+  model: getBuiltinModel('anthropic', 'claude-opus-4-5'),
   thinkingLevel: 'high',
   tools: ['read', 'bash', 'edit', 'write'], // optional allowlist
 });

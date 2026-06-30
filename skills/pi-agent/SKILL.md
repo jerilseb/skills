@@ -31,7 +31,7 @@ Read only the matching reference files before making changes.
 - Return `terminate: true` from tools only when the agent should not automatically continue; in a tool batch, every finalized result must request termination for early stop.
 - Preserve tool-call/result pairing when pruning, transforming, or compacting context.
 - Treat context overflow as a first-class agent-loop condition and compact rather than blindly retrying.
-- Use `@earendil-works/pi-coding-agent` for sessions, built-in coding tools, extensions, and compaction; these are not exported by `pi-agent-core` in version 0.74.0.
+- Use `@earendil-works/pi-coding-agent` for sessions, built-in coding tools, extensions, and compaction; these are not exported by `pi-agent-core` in version 0.80.2.
 
 ## Load The Matching Reference
 

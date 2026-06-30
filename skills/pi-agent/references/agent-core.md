@@ -1,6 +1,9 @@
 # `@earendil-works/pi-agent-core`
 
-Stateful agent loop package. In `0.74.0`, the public exports are `Agent`, low-level agent-loop functions, proxy helpers, and core agent types. Session management, built-in coding tools, compaction, extensions, and SDK helpers live in `@earendil-works/pi-coding-agent`, not in `pi-agent-core`.
+Stateful agent loop package. In `0.80.2`, the public exports are `Agent`, low-level agent-loop functions, proxy helpers, and core agent types. Session management, built-in coding tools, compaction, extensions, and SDK helpers live in `@earendil-works/pi-coding-agent`, not in `pi-agent-core`.
+
+> [!NOTE]
+> `pi-agent-core` imports its `pi-ai` types/helpers from `@earendil-works/pi-ai/compat`, so the compat shim is a transitive dependency you'll see even if your own code is on the modern `createModels()` API.
 
 ## Agent Tools
 
@@ -55,8 +58,8 @@ Important constructor options:
 - `initialState`: partial `AgentState` excluding runtime fields
 - `convertToLlm(messages)`: convert/filter custom `AgentMessage`s to provider `Message`s
 - `transformContext(messages, signal)`: prune/inject context before LLM conversion
-- `streamFn`: custom stream implementation; must return an assistant event stream
-- `getApiKey(provider)`: dynamic API-key/OAuth token resolution per LLM call
+- `streamFn`: custom stream implementation; must return an assistant event stream. A `pi-ai` `Models` collection's `streamSimple` satisfies this shape — pass `streamFn: (m, c, o) => models.streamSimple(m, c, o)` and the collection resolves auth internally, so `getApiKey` is unnecessary.
+- `getApiKey(provider)`: dynamic API-key/OAuth token resolution per LLM call (used by the default stream path; not needed when you supply a `streamFn` backed by a `Models` collection)
 - `onPayload`, `onResponse`: provider request/response inspection hooks from `pi-ai`
 - `beforeToolCall`, `afterToolCall`: tool interception hooks
 - `steeringMode`, `followUpMode`: `'all'` or `'one-at-a-time'`
@@ -99,7 +102,7 @@ Notes:
 
 - `convertToLlm` and `transformContext` should not throw. Return a safe fallback instead.
 - `afterToolCall` overrides fields shallowly: `content`, `details`, `isError`, and `terminate` replace the original fields. There is no deep merge.
-- `AgentOptions` does not expose a `prepareNextTurn` hook in `0.74.0`; change model/thinking/tool state through `agent.state` or a higher-level session wrapper between runs.
+- `AgentOptions` exposes a `prepareNextTurn` hook in `0.80.2` (return replacement context/model/thinking state to affect the next turn, or `undefined` to keep the current config); `shouldStopAfterTurn` remains low-level-loop-only (`AgentLoopConfig`), so for a graceful stop with `Agent` use a `turn_end` subscriber + `abort()`.
 - `prompt()` accepts a string with optional images, a single `AgentMessage`, or an array of `AgentMessage`s.
 - `continue()` requires the current transcript to end in a user/tool-result message after `convertToLlm`.
 
