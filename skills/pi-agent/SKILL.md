@@ -5,7 +5,7 @@ description: Reference manual for the Pi agent framework. Use when working with 
 
 # Pi Agent Framework
 
-Use this skill when building, reviewing, or modifying code that uses the Pi agent framework. References were verified against **`0.84.1`** (the version installed in this repo).
+Use this skill when building, reviewing, or modifying code that uses the Pi agent framework. The references describe the **`0.84.1`** API surface.
 
 The Pi ecosystem has three packages:
 
@@ -31,9 +31,9 @@ Read only the matching reference files before making changes.
 - When implementing `AgentTool.execute`, throw `Error` on failure; do not return error strings as normal content.
 - Return `terminate: true` from tools only when the agent should not automatically continue; in a tool batch, every finalized result must request termination for early stop.
 - **`Agent` requires a `streamFn`** — pass `(m, c, o) => models.streamSimple(m, c, o)` from a `pi-ai` `Models` collection (it resolves auth internally, so `getApiKey` is unnecessary), or install a process-wide default with `setDefaultStreamFn()`. The low-level loop functions take `streamFn` as a required positional argument too.
-- Build **one `Models` collection per process** and reuse it; never reach for the root-level `complete`/`getModel` globals (compat-only) or a per-call `apiKey`.
-- **OAuth is collection-owned**: `models.login(providerId, type, interaction)` / `logout` / `checkAuth`. The `@earendil-works/pi-ai/oauth` subpath is **type-only** — the old `loginAnthropic`/`getOAuthApiKey`/`registerOAuthProvider` value exports are gone.
-- For a graceful stop, use the `shouldStopAfterTurn` hook (available on both `AgentOptions` and `AgentLoopConfig`) rather than aborting from a `turn_end` subscriber.
+- Build **one `Models` collection per process** and reuse it. The collection resolves auth per request, so call sites pass no `apiKey`.
+- **Login is collection-owned**: `models.login(providerId, type, interaction)` / `logout(providerId)` / `checkAuth(providerId)`, for both API-key and OAuth providers.
+- For a graceful stop after the current turn, use the `shouldStopAfterTurn` hook (on both `AgentOptions` and `AgentLoopConfig`) rather than `abort()`.
 - Preserve tool-call/result pairing when pruning, transforming, or compacting context.
 - Treat context overflow as a first-class agent-loop condition and compact rather than blindly retrying.
 - Harness-layer APIs return `Result<T, E>` with tagged errors instead of throwing — check `.ok` and use `matchError` / `getOrThrow`.

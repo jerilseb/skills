@@ -1,12 +1,9 @@
 # `@earendil-works/pi-coding-agent` SDK & Infrastructure
 
-The coding-agent product SDK: sessions, built-in coding tools, extensions, settings, resource loading, prompt templates, and the interactive/RPC/print modes. Export lists below were verified against the published **`0.84.1`** package types.
+The coding-agent product SDK, `0.84.1`: sessions, built-in coding tools, extensions, settings, resource loading, prompt templates, and the interactive/RPC/print modes.
 
 > [!IMPORTANT]
-> **This is no longer the only home for sessions/compaction/tools.** `pi-agent-core@0.84` ships its own harness layer (durable `Session`, `AgentHarness`, compaction, `ExecutionEnv`, read/write/edit/bash tools) — see `agent-harness.md`. The two layers overlap by name but not by signature. `pi-coding-agent` is the batteries-included product layer (`~/.pi` layout, extensions, TUI); `pi-agent-core`'s harness is the embeddable primitive. Choose one per call site and keep imports unambiguous.
-
-> [!NOTE]
-> `@earendil-works/pi-coding-agent` is **not installed in this repo**; the surface below was verified by inspecting the published package, not by compiling against it.
+> This package and `pi-agent-core`'s harness layer (`agent-harness.md`) cover overlapping ground — sessions, compaction, file/shell tools — with **different signatures for same-named symbols**. `pi-coding-agent` is the batteries-included product layer (the `~/.pi` layout, extensions, TUI/RPC modes); `pi-agent-core`'s harness is the embeddable primitive. Choose one per call site and keep imports unambiguous.
 
 ## Main Public Entry Points
 
@@ -23,7 +20,7 @@ Selected root exports:
 - Extensions: `defineTool`, `createExtensionRuntime`, `discoverAndLoadExtensions`, `ExtensionRunner`, `wrapRegisteredTool(s)`
 - Modes/UI: `main`, `InteractiveMode`, `runPrintMode`, `runRpcMode`, `RpcClient`, plus the interactive components and `Theme`
 
-**Auth-related rename:** there is no `AuthStorage` export. Credentials are owned by **`ModelRuntime`** (`CreateModelRuntimeOptions`, `ModelRuntimeAuthOverrides`, `CredentialSynchronizationError`), with `readStoredCredential` for direct reads.
+**Auth:** credentials are owned by **`ModelRuntime`** (`CreateModelRuntimeOptions`, `ModelRuntimeAuthOverrides`, `CredentialSynchronizationError`), with `readStoredCredential` for direct reads.
 
 ## Creating A Session
 
@@ -136,7 +133,7 @@ Each tool also has an injectable operations interface (`ReadOperations`, `BashOp
 ## Compaction & Summarization
 
 > [!WARNING]
-> This package keeps its **own** compaction implementation with the pre-`Result` signatures: `compact(preparation, model, apiKey, headers?, customInstructions?, signal?, thinkingLevel?, streamFn?, env?, retry?, callbacks?)` resolving `CompactionResult` (it **throws** on failure). `pi-agent-core`'s version takes a `Models` collection and returns `Result<CompactResult, CompactionError>`. Don't mix them.
+> This package has its **own** compaction implementation, distinct from `pi-agent-core`'s: `compact(preparation, model, apiKey, headers?, customInstructions?, signal?, thinkingLevel?, streamFn?, env?, retry?, callbacks?)` resolves `CompactionResult` and **throws** on failure, where the harness version takes a `Models` collection and returns `Result<CompactResult, CompactionError>`. Don't mix them.
 >
 > Also: `prepareCompaction` and `estimateContextTokens` exist internally but are **not re-exported from the package root** — importing them from `@earendil-works/pi-coding-agent` fails. Use `AgentSession.compact()` / `getContextUsage()`, or the `pi-agent-core` equivalents.
 
@@ -169,9 +166,7 @@ Skill utilities: `loadSkills`, `loadSkillsFromDir` (`LoadSkillsFromDirOptions`, 
 
 ## Extensions & Hooks
 
-The extension system replaces the older "harness hooks" mental model.
-
-Extensions can:
+Extensions are this package's customization seam. They can:
 
 - subscribe to lifecycle events
 - register LLM-callable tools

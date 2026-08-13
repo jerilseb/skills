@@ -1,12 +1,9 @@
 # `@earendil-works/pi-agent-core` — Agent Loop
 
-Stateful agent loop package, verified against the installed **`0.84.1`** package types. This file covers the **low-level layer**: `AgentTool`, the `Agent` class, agent events, queues, and the raw loop functions.
-
-> [!IMPORTANT]
-> As of the 0.81–0.84 line, `pi-agent-core` **also ships a harness layer** — sessions, compaction, prompt templates, skills, harness tools, an execution environment, and telemetry. That surface is in `references/agent-harness.md`. The older rule "sessions/compaction/tools live only in `pi-coding-agent`" is **no longer true**.
+Stateful agent loop package, `0.84.1`. This file covers the **loop layer**: `AgentTool`, the `Agent` class, agent events, queues, and the raw loop functions.
 
 > [!NOTE]
-> `pi-agent-core` still imports some `pi-ai` types/helpers from `@earendil-works/pi-ai/compat`, so the compat shim is a transitive dependency you'll see even if your own code is on the modern `createModels()` API.
+> The same package also ships a **harness layer** — durable sessions, compaction, prompt templates, skills, filesystem/shell tools, and telemetry. That surface is in `references/agent-harness.md`.
 
 ## Agent Tools
 

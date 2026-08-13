@@ -1,6 +1,6 @@
 # `@earendil-works/pi-agent-core` — Harness Layer
 
-The harness layer ships **inside `pi-agent-core`** (verified against `0.84.1`), not in `pi-coding-agent`. It adds durable sessions, compaction, skills/prompt templates, filesystem-and-shell tools, and telemetry on top of the `Agent` loop documented in `agent-core.md`.
+The harness layer of `@earendil-works/pi-agent-core`, `0.84.1`. It adds durable sessions, compaction, skills/prompt templates, filesystem-and-shell tools, and telemetry on top of the `Agent` loop documented in `agent-core.md`.
 
 Import from the package root; Node-specific pieces come from the `/node` subpath:
 
@@ -83,7 +83,7 @@ const tools = [createReadTool(), createWriteTool(), createEditTool(), createBash
 // harness resolves { env } per turn via toolContext
 ```
 
-Only `bash`, `edit`, `read`, and `write` live here — `grep`/`find`/`ls` remain in `pi-coding-agent`. Output-shaping helpers `truncateHead` / `truncateTail` / `truncateLine` and shell-output utilities are exported alongside them.
+The harness ships four tools — `bash`, `edit`, `read`, `write`; `grep`/`find`/`ls` exist only in `pi-coding-agent`. Output-shaping helpers `truncateHead` / `truncateTail` / `truncateLine` and shell-output utilities are exported alongside them.
 
 ## Sessions
 

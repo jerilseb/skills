@@ -1,9 +1,9 @@
 # `@earendil-works/pi-ai`
 
-Stateless LLM/provider abstraction. Public APIs below were verified against the installed **`0.84.1`** package types.
+Stateless LLM/provider abstraction, `0.84.1`.
 
 > [!IMPORTANT]
-> **The old "global" API is not in the package root.** `complete`, `completeSimple`, `stream`, `streamSimple`, `getModel`, `getModels`, `getProviders`, `getEnvApiKey`, `findEnvKeys`, and the `registerApiProvider`/`getApiProvider` registry live only in the temporary compat entrypoint **`@earendil-works/pi-ai/compat`**. New code uses a **`Models` collection** built with `createModels()` / `builtinModels()` and calls generation as **methods on that collection** (`models.complete(...)`, `models.streamSimple(...)`). Auth (env API keys, OAuth login/refresh) is resolved **inside** the collection, so call sites no longer pass `apiKey`. Compat's own docstring says it "is deleted with the coding-agent ModelManager migration" — treat it as a migration shim, not a destination.
+> Everything is organized around a **`Models` collection**, built with `createModels()` or `builtinModels()`. It owns the provider registry, resolves auth per request, and exposes generation as **methods** (`models.complete(...)`, `models.streamSimple(...)`). Because auth resolution happens inside the collection, call sites pass no `apiKey`.
 
 ## The `Models` Collection (core)
 
@@ -73,7 +73,7 @@ const ids = getBuiltinModels('openrouter');
 const known = getBuiltinProviders();
 ```
 
-`getBuiltinModelDataGeneratedAt()` returns when the bundled catalog was generated. The root-level `getModel`/`getModels`/`getProviders` are compat-only and deprecated. `hasApi(model, api)` narrows a dynamically looked-up `Model<Api>` to `Model<TApi>` for fully-typed stream options.
+`getBuiltinModelDataGeneratedAt()` returns when the bundled catalog was generated. `hasApi(model, api)` narrows a dynamically looked-up `Model<Api>` to `Model<TApi>` for fully-typed stream options.
 
 ## Model & Thinking Utilities
 
@@ -108,14 +108,11 @@ Every provider declares `auth: ProviderAuth` — at least one of `apiKey?: ApiKe
 
 `envApiKeyAuth(name, envVars)` builds a standard api-key `ApiKeyAuth` whose `resolve()` prefers a stored credential, else the first set env var — what built-in api-key providers use. Because `builtinModels()` defaults to `defaultProviderAuthContext()`, **setting a provider's standard key env var is all that's needed** (e.g. `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`); no code change, no per-call `apiKey`. `lazyOAuth({ name, load })` wraps a dynamically imported `OAuthAuth` so a provider definition can advertise OAuth without pulling Node-only flow code into a bundle.
 
-`getEnvApiKey` / `findEnvKeys` are **not at the root** — to read a resolved key directly, use `(await models.getAuth(model))?.auth.apiKey`.
+To read a resolved key directly, use `(await models.getAuth(model))?.auth.apiKey`.
 
-## OAuth And Interactive Login
+## Interactive Login
 
-> [!WARNING]
-> The **`@earendil-works/pi-ai/oauth` subpath is type-only** in 0.84 — it re-exports `OAuthCredentials`, `OAuthPrompt`, `OAuthLoginCallbacks`, `OAuthAuthInfo`, `OAuthDeviceCodeInfo`, `OAuthSelectOption`/`OAuthSelectPrompt` for coding-agent extension declarations and nothing else. The old value exports (`loginAnthropic`, `loginGitHubCopilot`, `loginOpenAICodex`, `getOAuthApiKey`, `getOAuthProvider(s)`, `refreshOAuthToken`, `registerOAuthProvider`, `anthropicOAuth`, …) **no longer exist**. Do not write imports against them.
-
-Login is now provider-owned and driven through the collection. Pass a `CredentialStore` so the credential is persisted and refreshes stay locked:
+Login flows are provider-owned and driven through the collection — the same two calls serve api-key and OAuth providers. Pass a `CredentialStore` so the credential is persisted and refreshes stay locked:
 
 ```typescript
 import { InMemoryCredentialStore, type AuthInteraction } from '@earendil-works/pi-ai';
@@ -165,7 +162,7 @@ Validation throws formatted `Error`s. Let callers/tool loops handle those as too
 
 ## Generation
 
-Generation is **methods on a `Models` collection** (or the compat free functions). Both signatures match the old globals minus auth, which the collection injects.
+Generation runs as **methods on a `Models` collection**, which injects auth for each request.
 
 - `models.stream` / `models.complete` accept provider-specific `ModelsApiStreamOptions<TApi>` (= `ApiStreamOptions<TApi>` + `ModelsRequestTransforms`).
 - `models.streamSimple` / `models.completeSimple` accept `ModelsSimpleStreamOptions` (= `SimpleStreamOptions` + `ModelsRequestTransforms`), including `reasoning?: ThinkingLevel`.
@@ -341,5 +338,3 @@ function customStream(model, context, options) {
   return stream;
 }
 ```
-
-For a custom `api` string the framework can't emit natively, the compat-only `registerApiProvider()` registry still exists (`@earendil-works/pi-ai/compat`), but prefer `createProvider()` + `setProvider()`.
