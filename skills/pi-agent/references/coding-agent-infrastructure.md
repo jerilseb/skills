@@ -1,11 +1,12 @@
 # `@earendil-works/pi-coding-agent` SDK & Infrastructure
 
-The higher-level coding-agent infrastructure is exported from `@earendil-works/pi-coding-agent`, not from `@earendil-works/pi-agent-core` in `0.80.2`.
+The coding-agent product SDK: sessions, built-in coding tools, extensions, settings, resource loading, prompt templates, and the interactive/RPC/print modes. Export lists below were verified against the published **`0.84.1`** package types.
+
+> [!IMPORTANT]
+> **This is no longer the only home for sessions/compaction/tools.** `pi-agent-core@0.84` ships its own harness layer (durable `Session`, `AgentHarness`, compaction, `ExecutionEnv`, read/write/edit/bash tools) — see `agent-harness.md`. The two layers overlap by name but not by signature. `pi-coding-agent` is the batteries-included product layer (`~/.pi` layout, extensions, TUI); `pi-agent-core`'s harness is the embeddable primitive. Choose one per call site and keep imports unambiguous.
 
 > [!NOTE]
-> `@earendil-works/pi-coding-agent` is **not installed in this repo**, so (unlike the `pi-ai` / `pi-agent-core` references) the export/API specifics below were not re-verified against the package — they reflect the `0.74` surface with version pins bumped to the `0.80` line. The one cross-package fact that is verified: `pi-ai`'s root `getModel`/`getProviders` moved to a `Models` collection / the `providers/all` subpath in 0.80 (see `pi-ai.md`).
-
-Use this reference for sessions, built-in coding tools, compaction, resource loading, extensions, settings, prompt templates, and interactive/RPC/print mode integration.
+> `@earendil-works/pi-coding-agent` is **not installed in this repo**; the surface below was verified by inspecting the published package, not by compiling against it.
 
 ## Main Public Entry Points
 
@@ -13,14 +14,16 @@ Selected root exports:
 
 - `createAgentSession`, `createAgentSessionServices`, `createAgentSessionRuntime`, `createAgentSessionFromServices`
 - `AgentSession`, `AgentSessionRuntime`
-- `SessionManager`, `SettingsManager`, `ModelRegistry`, `AuthStorage`
+- `SessionManager`, `SettingsManager`, `ModelRegistry`, `ModelRuntime`, `readStoredCredential`
+- `DefaultResourceLoader` / `loadProjectContextFiles`, `DefaultPackageManager`, `ProjectTrustStore`
 - Built-in tool factories: `createReadTool`, `createBashTool`, `createEditTool`, `createWriteTool`, `createGrepTool`, `createFindTool`, `createLsTool`, `createCodingTools`, `createReadOnlyTools`
 - Tool-definition factories: `createReadToolDefinition`, `createBashToolDefinition`, etc.
-- Compaction utilities: `estimateContextTokens`, `shouldCompact`, `prepareCompaction`, `compact`, `generateSummary`, `generateBranchSummary`, etc.
+- Compaction utilities: `shouldCompact`, `compact`, `generateSummary`, `generateBranchSummary`, `calculateContextTokens`, … (see the caveat below)
 - Skills: `loadSkills`, `loadSkillsFromDir`, `formatSkillsForPrompt`
 - Extensions: `defineTool`, `createExtensionRuntime`, `discoverAndLoadExtensions`, `ExtensionRunner`, `wrapRegisteredTool(s)`
+- Modes/UI: `main`, `InteractiveMode`, `runPrintMode`, `runRpcMode`, `RpcClient`, plus the interactive components and `Theme`
 
-There is no public `AgentHarness`, `NodeExecutionEnv`, `JsonlSessionRepo`, or `executeShellWithCapture` export in `0.80.2`.
+**Auth-related rename:** there is no `AuthStorage` export. Credentials are owned by **`ModelRuntime`** (`CreateModelRuntimeOptions`, `ModelRuntimeAuthOverrides`, `CredentialSynchronizationError`), with `readStoredCredential` for direct reads.
 
 ## Creating A Session
 
@@ -44,14 +47,15 @@ session.subscribe((event) => {
 await session.prompt('Inspect this project and summarize it.');
 ```
 
-Useful `CreateAgentSessionOptions`:
+`CreateAgentSessionOptions`:
 
-- `cwd`, `agentDir`
-- `authStorage`, `modelRegistry`, `sessionManager`, `settingsManager`, `resourceLoader`
+- `cwd` (default `process.cwd()`), `agentDir` (default `~/.pi/agent`)
+- `modelRuntime` — canonical model/auth runtime; defaults to one backed by `agentDir/auth.json` + `models.json`
 - `model`, `thinkingLevel`, `scopedModels`
 - `noTools: 'all' | 'builtin'`
-- `tools`: allowlist of tool names
-- `customTools`: custom `ToolDefinition[]`
+- `tools` — allowlist of tool names; `excludeTools` — denylist applied after `tools`
+- `customTools` — custom `ToolDefinition[]`
+- `resourceLoader`, `sessionManager`, `settingsManager`
 - `sessionStartEvent`
 
 ## AgentSession Responsibilities
@@ -65,40 +69,40 @@ Useful `CreateAgentSessionOptions`:
 - extension command handling
 - built-in tool registry and active-tool selection
 - manual and automatic compaction
-- overflow recovery and retry handling
+- overflow recovery and auto-retry handling
 - bash execution recording
 - tree navigation and branch summarization
 - export to HTML/JSONL
 
 Important methods/properties:
 
-- `prompt(text, options?)`
-- `steer(text, images?)`
-- `followUp(text, images?)`
-- `sendUserMessage(content, options?)`
-- `sendCustomMessage(message, options?)`
-- `clearQueue()`, `pendingMessageCount`, `getSteeringMessages()`, `getFollowUpMessages()`
-- `abort()`, `abortCompaction()`, `abortBranchSummary()`, `abortRetry()`, `abortBash()`
-- `setModel(model)`, `cycleModel(direction?)`
-- `setThinkingLevel(level)`, `cycleThinkingLevel()`, `supportsThinking()`
-- `setActiveToolsByName(names)`, `getActiveToolNames()`, `getAllTools()`
-- `compact(customInstructions?)`
-- `navigateTree(targetId, options?)`
-- `executeBash(command, onChunk?, options?)`
-- `reload()`, `dispose()`
-- `getSessionStats()`, `getContextUsage()`
-- `exportToHtml(path?)`, `exportToJsonl(path?)`
+- `prompt(text, options?)`, `sendUserMessage(content, options?)`, `sendCustomMessage(message, options?)`
+- `steer(text, images?)`, `followUp(text, images?)`, `clearQueue()`, `pendingMessageCount`, `getSteeringMessages()`, `getFollowUpMessages()`
+- `abort()`, `waitForIdle()`, `abortCompaction()`, `abortBranchSummary()`, `abortRetry()`, `abortBash()`
+- `setModel(model)`, `cycleModel(direction?)`, `setScopedModels(...)`, `modelRuntime`
+- `setThinkingLevel(level)`, `cycleThinkingLevel()`, `getAvailableThinkingLevels()`, `supportsThinking()`
+- `getAllTools()`, `getActiveToolNames()`, `setActiveToolsByName(names)`, `getToolDefinition(name)`
+- `compact(customInstructions?)`, `setAutoCompactionEnabled(enabled)`, `autoCompactionEnabled`, `isCompacting`
+- `setAutoRetryEnabled(enabled)`, `autoRetryEnabled`, `isRetrying`, `retryAttempt`
+- `executeBash(command, onChunk?, options?)`, `recordBashResult(...)`, `isBashRunning`, `hasPendingBashMessages`
+- `navigateTree(targetId, options?)`, `getUserMessagesForForking()`
+- `bindExtensions(bindings)`, `reload(options?)`, `dispose()`
+- `setSessionName(name)`, `sessionId`, `sessionName`, `sessionFile`
+- `getSessionStats()`, `getContextUsage()`, `exportToHtml(path?)`, `exportToJsonl(path?)`
+- State getters: `state`, `messages`, `model`, `thinkingLevel`, `systemPrompt`, `isStreaming`, `isIdle`, `steeringMode`/`followUpMode`, `agent`, `sessionManager`, `settingsManager`, `resourceLoader`
 
 `AgentSession.prompt()` expands prompt templates by default, accepts image attachments, and requires `streamingBehavior: 'steer' | 'followUp'` when called while the agent is already streaming.
 
 ## AgentSession Events
 
-`AgentSessionEvent` includes all core `AgentEvent`s plus:
+`AgentSessionEvent` includes all core `AgentEvent`s (with `agent_end` extended by `willRetry`) plus:
 
 | Event | Fields |
 | --- | --- |
+| `agent_settled` | — |
+| `entry_appended` | `entry` |
 | `queue_update` | `steering`, `followUp` |
-| `compaction_start` | `reason: 'manual' | 'threshold' | 'overflow'` |
+| `compaction_start` | `reason: 'manual' \| 'threshold' \| 'overflow'` |
 | `compaction_end` | `reason`, `result`, `aborted`, `willRetry`, `errorMessage?` |
 | `auto_retry_start` | `attempt`, `maxAttempts`, `delayMs`, `errorMessage` |
 | `auto_retry_end` | `success`, `attempt`, `finalError?` |
@@ -107,17 +111,7 @@ Important methods/properties:
 
 ## Built-In Coding Tools
 
-Built-in tool names:
-
-- `read`
-- `bash`
-- `edit`
-- `write`
-- `grep`
-- `find`
-- `ls`
-
-Factories:
+Built-in tool names: `read`, `bash`, `edit`, `write`, `grep`, `find`, `ls`. (Only read/write/edit/bash have `pi-agent-core` harness equivalents; grep/find/ls are exclusive to this package.)
 
 ```typescript
 import {
@@ -137,78 +131,45 @@ const tools = createCodingTools(process.cwd());
 const readOnly = createReadOnlyTools(process.cwd());
 ```
 
-Use `withFileMutationQueue` when composing tools that mutate files to serialize unsafe file writes/edits.
+Each tool also has an injectable operations interface (`ReadOperations`, `BashOperations`, `EditOperations`, `WriteOperations`, `GrepOperations`, `FindOperations`, `LsOperations`) plus `createLocalBashOperations` and bash spawn hooks. Use `withFileMutationQueue` when composing tools that mutate files to serialize unsafe writes/edits.
 
 ## Compaction & Summarization
 
-Compaction exports are from `@earendil-works/pi-coding-agent`.
+> [!WARNING]
+> This package keeps its **own** compaction implementation with the pre-`Result` signatures: `compact(preparation, model, apiKey, headers?, customInstructions?, signal?, thinkingLevel?, streamFn?, env?, retry?, callbacks?)` resolving `CompactionResult` (it **throws** on failure). `pi-agent-core`'s version takes a `Models` collection and returns `Result<CompactResult, CompactionError>`. Don't mix them.
+>
+> Also: `prepareCompaction` and `estimateContextTokens` exist internally but are **not re-exported from the package root** — importing them from `@earendil-works/pi-coding-agent` fails. Use `AgentSession.compact()` / `getContextUsage()`, or the `pi-agent-core` equivalents.
 
-```typescript
-import {
-  DEFAULT_COMPACTION_SETTINGS,
-  estimateContextTokens,
-  shouldCompact,
-  prepareCompaction,
-  compact,
-} from '@earendil-works/pi-coding-agent';
-
-const usage = estimateContextTokens(session.messages);
-if (usage.tokens && shouldCompact(usage.tokens, model.contextWindow, DEFAULT_COMPACTION_SETTINGS)) {
-  const pathEntries = session.sessionManager.getBranch();
-  const prep = prepareCompaction(pathEntries, DEFAULT_COMPACTION_SETTINGS);
-  if (prep) {
-    const result = await compact(prep, model, apiKey, headers, customInstructions, signal, thinkingLevel);
-    session.sessionManager.appendCompaction(
-      result.summary,
-      result.firstKeptEntryId,
-      result.tokensBefore,
-      result.details,
-    );
-  }
-}
-```
-
-Public compaction utilities include:
+Root-exported compaction utilities:
 
 - `calculateContextTokens(usage)`
 - `getLastAssistantUsage(entries)`
-- `estimateContextTokens(messages)`
 - `shouldCompact(contextTokens, contextWindow, settings)`
 - `estimateTokens(message)`
 - `findTurnStartIndex(entries, entryIndex, startIndex)`
 - `findCutPoint(entries, startIndex, endIndex, keepRecentTokens)`
-- `prepareCompaction(pathEntries, settings)`
-- `generateSummary(...)`
-- `compact(...)`
-- `collectEntriesForBranchSummary(...)`
-- `prepareBranchEntries(entries, tokenBudget?)`
-- `generateBranchSummary(entries, options)`
+- `generateSummary(...)`, `generateSummaryWithUsage(...)`
+- `compact(...)`, `DEFAULT_COMPACTION_SETTINGS`
+- `collectEntriesForBranchSummary(...)`, `prepareBranchEntries(entries, tokenBudget?)`, `generateBranchSummary(entries, options)`
 - `serializeConversation(messages)`
 
-Compaction preparation preserves safe cut points, tracks file operations, supports split-turn summaries, and carries previous summaries forward.
+Compaction preparation preserves safe cut points, tracks file operations, supports split-turn summaries, and carries previous summaries forward. In practice prefer `session.compact(customInstructions?)`, which coordinates persistence, events, and auto-compaction settings.
 
 ## Session Management
 
-`SessionManager` and related types are exported from `@earendil-works/pi-coding-agent`.
-
-Relevant exported types include `SessionEntry`, `SessionHeader`, `SessionInfo`, `SessionContext`, `SessionMessageEntry`, `CompactionEntry`, `BranchSummaryEntry`, `FileEntry`, `ModelChangeEntry`, and `ThinkingLevelChangeEntry`.
+`SessionManager` and its entry types are exported from this package: `SessionEntry`, `SessionHeader`, `SessionInfo`, `SessionContext`, `SessionMessageEntry`, `CompactionEntry`, `BranchSummaryEntry`, `FileEntry`, `ModelChangeEntry`, `ThinkingLevelChangeEntry`, `SessionInfoEntry`, `CustomEntry`, `SessionTreeNode`, plus `CURRENT_SESSION_VERSION`, `parseSessionEntries`, `migrateSessionEntries`, `buildSessionContext`, `buildContextEntries`, `getLatestCompactionEntry`, `sessionEntryToContextMessages`.
 
 Use `AgentSession` where possible instead of directly mutating session entries; it coordinates persistence, active branch position, compaction, extension events, and agent state.
 
 ## Skills & Resources
 
-Skill utilities:
+Skill utilities: `loadSkills`, `loadSkillsFromDir` (`LoadSkillsFromDirOptions`, `LoadSkillsResult`), `formatSkillsForPrompt`, and the `Skill` / `SkillFrontmatter` types. Note these are **path-based**, unlike `pi-agent-core`'s `ExecutionEnv`-based loaders.
 
-- `loadSkills`
-- `loadSkillsFromDir`
-- `formatSkillsForPrompt`
-- `Skill`, `SkillFrontmatter`
-
-`AgentSession` expands `/skill:name args` prompts using loaded resources. Resource loading is handled through `ResourceLoader` / `DefaultResourceLoader`.
+`AgentSession` expands `/skill:name args` prompts using loaded resources. Resource loading goes through `ResourceLoader` / `DefaultResourceLoader` (with `ResourceCollision` / `ResourceDiagnostic` reporting), package installation through `DefaultPackageManager`, and project-context files through `loadProjectContextFiles`. Untrusted-project gating is `ProjectTrustStore` / `hasTrustRequiringProjectResources`.
 
 ## Extensions & Hooks
 
-The extension system replaces the older “harness hooks” mental model.
+The extension system replaces the older "harness hooks" mental model.
 
 Extensions can:
 
@@ -218,16 +179,9 @@ Extensions can:
 - intercept/modify context, provider payloads, tool calls/results, compaction, session tree navigation, and bash execution
 - interact with the UI through `ExtensionUIContext`
 
-Important exports:
+Important exports: `defineTool`, `createExtensionRuntime`, `discoverAndLoadExtensions`, `ExtensionRunner`, `wrapRegisteredTool` / `wrapRegisteredTools`, and the tool-result guards `isReadToolResult`, `isBashToolResult`, `isEditToolResult`, `isWriteToolResult`, `isGrepToolResult`, `isFindToolResult`, `isLsToolResult`, `isToolCallEventType`.
 
-- `defineTool`
-- `createExtensionRuntime`
-- `discoverAndLoadExtensions`
-- `ExtensionRunner`
-- `wrapRegisteredTool`, `wrapRegisteredTools`
-- `isReadToolResult`, `isBashToolResult`, `isEditToolResult`, etc.
-
-Extension event types include agent lifecycle events, provider request/payload/response events, tool-call/result events, session compaction/tree/fork/switch events, input events, user bash events, and session shutdown/start events. Consult `@earendil-works/pi-coding-agent` extension types/docs before implementing new hooks.
+Extension event types include agent lifecycle events (`BeforeAgentStartEvent`, `AgentStartEvent`, `AgentEndEvent`, `AgentSettledEvent`), provider events (`BeforeProviderRequestEvent`, `BeforeProviderHeadersEvent`), tool-call/result events, session events (`SessionBeforeCompactEvent`, `SessionCompactEvent`, `SessionBeforeForkEvent`, `SessionBeforeSwitchEvent`, `SessionBeforeTreeEvent`, `SessionTreeEvent`, `SessionInfoChangedEvent`, `SessionStartEvent`, `SessionShutdownEvent`), `InputEvent`, `UserBashEvent`, and `ProjectTrustEvent`. Consult the package's extension types before implementing new hooks.
 
 ## Example: Custom Tool With `defineTool`
 

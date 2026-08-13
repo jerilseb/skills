@@ -1,9 +1,12 @@
-# `@earendil-works/pi-agent-core`
+# `@earendil-works/pi-agent-core` — Agent Loop
 
-Stateful agent loop package. In `0.80.2`, the public exports are `Agent`, low-level agent-loop functions, proxy helpers, and core agent types. Session management, built-in coding tools, compaction, extensions, and SDK helpers live in `@earendil-works/pi-coding-agent`, not in `pi-agent-core`.
+Stateful agent loop package, verified against the installed **`0.84.1`** package types. This file covers the **low-level layer**: `AgentTool`, the `Agent` class, agent events, queues, and the raw loop functions.
+
+> [!IMPORTANT]
+> As of the 0.81–0.84 line, `pi-agent-core` **also ships a harness layer** — sessions, compaction, prompt templates, skills, harness tools, an execution environment, and telemetry. That surface is in `references/agent-harness.md`. The older rule "sessions/compaction/tools live only in `pi-coding-agent`" is **no longer true**.
 
 > [!NOTE]
-> `pi-agent-core` imports its `pi-ai` types/helpers from `@earendil-works/pi-ai/compat`, so the compat shim is a transitive dependency you'll see even if your own code is on the modern `createModels()` API.
+> `pi-agent-core` still imports some `pi-ai` types/helpers from `@earendil-works/pi-ai/compat`, so the compat shim is a transitive dependency you'll see even if your own code is on the modern `createModels()` API.
 
 ## Agent Tools
 
@@ -41,6 +44,8 @@ const readFileTool: AgentTool<typeof Params, { path: string }> = {
 };
 ```
 
+`AgentToolResult<T>` is `{ content, details, usage?, addedToolNames?, terminate? }` — `usage` reports the tool's own token spend (not counted toward main LLM context accounting) and `addedToolNames` names tools that become available from this transcript point onward.
+
 Working rules:
 
 - Throw `Error` on failure; the loop converts failures to error tool-result messages.
@@ -53,26 +58,31 @@ Working rules:
 
 `Agent` owns transcript state, streams assistant turns, executes tools, and manages steering/follow-up queues.
 
-Important constructor options:
+`AgentOptions`:
 
-- `initialState`: partial `AgentState` excluding runtime fields
+- **`streamFn` (REQUIRED)**: the stream implementation. A `pi-ai` `Models` collection's `streamSimple` satisfies the shape — `streamFn: (m, c, o) => models.streamSimple(m, c, o)` — and the collection resolves auth internally, so `getApiKey` is unnecessary. A host that installs a process-wide default via `setDefaultStreamFn()` can pass `getDefaultStreamFn()` here.
+- `initialState`: partial `AgentState` excluding runtime fields (`pendingToolCalls`, `isStreaming`, `streamingMessage`, `errorMessage`)
 - `convertToLlm(messages)`: convert/filter custom `AgentMessage`s to provider `Message`s
 - `transformContext(messages, signal)`: prune/inject context before LLM conversion
-- `streamFn`: custom stream implementation; must return an assistant event stream. A `pi-ai` `Models` collection's `streamSimple` satisfies this shape — pass `streamFn: (m, c, o) => models.streamSimple(m, c, o)` and the collection resolves auth internally, so `getApiKey` is unnecessary.
-- `getApiKey(provider)`: dynamic API-key/OAuth token resolution per LLM call (used by the default stream path; not needed when you supply a `streamFn` backed by a `Models` collection)
+- `getApiKey(provider)`: dynamic API-key/OAuth token resolution per LLM call (not needed with a `Models`-backed `streamFn`)
 - `onPayload`, `onResponse`: provider request/response inspection hooks from `pi-ai`
 - `beforeToolCall`, `afterToolCall`: tool interception hooks
+- `shouldStopAfterTurn(context, signal)`: graceful stop after the current turn — see below
+- `prepareNextTurn(signal)` / `prepareNextTurnWithContext(context, signal)`: return replacement context/model/thinking state for the next turn, or `undefined` to keep the current config
 - `steeringMode`, `followUpMode`: `'all'` or `'one-at-a-time'`
 - `sessionId`, `thinkingBudgets`, `transport`, `maxRetryDelayMs`
 - `toolExecution`: `'sequential'` or `'parallel'`
 
 ```typescript
 import { Agent } from '@earendil-works/pi-agent-core';
+import { builtinModels } from '@earendil-works/pi-ai/providers/all';
 
+const models = builtinModels();
 const isLlmMessage = (message: any) =>
   message?.role === 'user' || message?.role === 'assistant' || message?.role === 'toolResult';
 
 const agent = new Agent({
+  streamFn: (model, context, options) => models.streamSimple(model, context, options),
   initialState: {
     model,
     systemPrompt: 'You are helpful.',
@@ -83,7 +93,6 @@ const agent = new Agent({
   toolExecution: 'parallel',
   convertToLlm: (messages) => messages.filter(isLlmMessage),
   transformContext: async (messages) => messages,
-  getApiKey: async (provider) => lookupApiKey(provider),
   beforeToolCall: async ({ toolCall }) => {
     if (toolCall.name === 'dangerous_tool') {
       return { block: true, reason: 'Forbidden' };
@@ -100,11 +109,30 @@ await agent.waitForIdle();
 
 Notes:
 
-- `convertToLlm` and `transformContext` should not throw. Return a safe fallback instead.
-- `afterToolCall` overrides fields shallowly: `content`, `details`, `isError`, and `terminate` replace the original fields. There is no deep merge.
-- `AgentOptions` exposes a `prepareNextTurn` hook in `0.80.2` (return replacement context/model/thinking state to affect the next turn, or `undefined` to keep the current config); `shouldStopAfterTurn` remains low-level-loop-only (`AgentLoopConfig`), so for a graceful stop with `Agent` use a `turn_end` subscriber + `abort()`.
+- `convertToLlm`, `transformContext`, and `shouldStopAfterTurn` should not throw. Return a safe fallback instead — throwing interrupts the loop without a normal event sequence.
+- `afterToolCall` overrides fields shallowly: `content`, `details`, `isError`, `usage`, and `terminate` replace the original fields. There is no deep merge.
+- `beforeToolCall` returning `{ block: true }` emits an error tool result instead of executing; it may also set `terminate: true` to join the batch early-termination rule.
 - `prompt()` accepts a string with optional images, a single `AgentMessage`, or an array of `AgentMessage`s.
 - `continue()` requires the current transcript to end in a user/tool-result message after `convertToLlm`.
+
+## Stopping Gracefully After A Turn
+
+`shouldStopAfterTurn` is available on **both** `AgentOptions` and `AgentLoopConfig`. It runs after `turn_end` is emitted; returning `true` makes the loop emit `agent_end` and exit **before** polling the steering/follow-up queues, without starting another LLM call. The in-flight assistant response and its tool executions finish normally — this is a clean stop, not `abort()`.
+
+```typescript
+const agent = new Agent({
+  streamFn: (m, c, o) => models.streamSimple(m, c, o),
+  initialState: { model, systemPrompt, messages: [], tools },
+  shouldStopAfterTurn: async ({ context, message, toolResults, newMessages }) => {
+    const approxTokens = context.messages
+      .map((m) => JSON.stringify(m).length)
+      .reduce((a, b) => a + b, 0) / 4;
+    return approxTokens > model.contextWindow * 0.8;
+  },
+});
+```
+
+The hook context is `{ message, toolResults, context, newMessages }`. Use `prepareNextTurn`/`prepareNextTurnWithContext` instead when you want to *continue* with a compacted context or a different model rather than stop.
 
 ## Queues, Abort, And State
 
@@ -114,12 +142,12 @@ Useful methods/properties:
 - `followUp(message)`: queue a message only after the agent would otherwise stop
 - `clearSteeringQueue()`, `clearFollowUpQueue()`, `clearAllQueues()`
 - `hasQueuedMessages()`
-- `abort()`
+- `abort()`, `signal`
 - `waitForIdle()`
 - `reset()`
 - `state`: includes `systemPrompt`, `model`, `thinkingLevel`, tools/messages accessors, `isStreaming`, `streamingMessage`, `pendingToolCalls`, `errorMessage`
 
-`Agent.subscribe()` listeners are awaited in subscription order. `agent_end` is the last event, but `waitForIdle()` resolves only after awaited `agent_end` listeners settle.
+`Agent.subscribe()` listeners are awaited in subscription order and receive the active abort signal. `agent_end` is the last event, but `waitForIdle()` resolves only after awaited `agent_end` listeners settle.
 
 ## Agent Events
 
@@ -148,24 +176,26 @@ const unsubscribe = agent.subscribe(async (event, signal) => {
 
 Exports:
 
-- `agentLoop(prompts, context, config, signal?, streamFn?)`
-- `agentLoopContinue(context, config, signal?, streamFn?)`
-- `runAgentLoop(...)`
-- `runAgentLoopContinue(...)`
+- `agentLoop(prompts, context, config, signal, streamFn)`
+- `agentLoopContinue(context, config, signal, streamFn)`
+- `runAgentLoop(prompts, context, config, emit, signal, streamFn)`
+- `runAgentLoopContinue(context, config, emit, signal, streamFn)`
 
-`AgentLoopConfig` extends `SimpleStreamOptions` and adds model, conversion, context transform, dynamic API-key lookup, queue suppliers, stop hook, tool execution mode, and tool hooks.
+`streamFn` is a **required positional argument** on all four (`signal` may be `undefined`). `AgentLoopConfig` extends `SimpleStreamOptions` and adds `model`, `convertToLlm` (required), `transformContext`, `getApiKey`, `shouldStopAfterTurn`, `prepareNextTurn`, `getSteeringMessages`/`getFollowUpMessages` queue suppliers, `toolExecution`, and the `beforeToolCall`/`afterToolCall` hooks.
 
 ```typescript
 import { agentLoop, agentLoopContinue } from '@earendil-works/pi-agent-core';
 
-const stream = agentLoop([userMessage], context, config, signal);
+const stream = agentLoop([userMessage], context, config, signal, streamFn);
 for await (const event of stream) {
   // handle AgentEvent
 }
 const newMessages = await stream.result();
 ```
 
-Custom `streamFn` contract: it must not throw/reject for request/model/runtime failures. It should return an `AssistantMessageEventStream` whose terminal event encodes failures as an assistant message with `stopReason: 'error'` or `'aborted'` and `errorMessage`.
+Custom `streamFn` contract: it must not throw/reject for request/model/runtime failures. It returns an `AssistantMessageEventStream` (or a promise of one) whose terminal event encodes failures as an assistant message with `stopReason: 'error'` or `'aborted'` and `errorMessage`.
+
+`setDefaultStreamFn(streamFn)` / `getDefaultStreamFn()` install and read a process-wide fallback, so a host can wire a model runtime once without making `pi-agent-core` depend on a provider catalog.
 
 ## Example: Custom AgentMessage Type
 
@@ -188,29 +218,11 @@ declare module '@earendil-works/pi-agent-core' {
 }
 
 const agent = new Agent({
+  streamFn,
   convertToLlm: (messages: AgentMessage[]) => messages.flatMap((message) => {
     if ((message as any).role === 'notice') return []; // UI-only
     return [message as any];
   }),
-});
-```
-
-## Example: Gracefully Stop Before Context Gets Too Large
-
-```typescript
-import { Agent } from '@earendil-works/pi-agent-core';
-
-const agent = new Agent({
-  initialState: { model, systemPrompt, messages: [], tools },
-});
-
-// Low-level loops expose shouldStopAfterTurn in AgentLoopConfig. With Agent,
-// implement this policy in a wrapper/session layer or stop after observed events.
-agent.subscribe((event) => {
-  if (event.type === 'turn_end') {
-    const approxChars = agent.state.messages.map((m: any) => JSON.stringify(m).length).reduce((a, b) => a + b, 0);
-    if (approxChars / 4 > model.contextWindow * 0.8) agent.abort();
-  }
 });
 ```
 
